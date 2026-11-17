@@ -1,98 +1,91 @@
-#!/bin/bash
+#!/bin/sh
 
-set -e
+# Script to copy modules quickly from mtk bazel kernel builds
+# Brought to you by: rio004
+#
 
-# Debug/helper functions
-info() { echo -e "\033[1;32m[INFO]\033[0m $*"; }
-warn() { echo -e "\033[1;33m[WARN]\033[0m $*"; }
-error() { echo -e "\033[1;31m[ERROR]\033[0m $*" >&2; }
+GREEN="\033[0;32m"
+RED="\033[0;31m"
+RESET="\033[0m"
 
-show_help() {
-    cat <<EOF
-Usage: $0 ROOT_DIR
+KERNEL_DIR="$1"
+SRC_DIR="$KERNEL_DIR/out/dist/"
 
-This script copies kernel components and modules from the build output directory.
+SOC="mt6899"
 
-Arguments:
-  ROOT_DIR - Path to the root directory containing build outputs
-EOF
+[ -z "$KERNEL_DIR" ] && { echo "Usage: $0 /path/to/kernel/"; exit 1; }
+[ ! -d "$KERNEL_DIR" ] && { echo "${RED}Invalid KERNEL_DIR:${RESET} $KERNEL_DIR"; exit 1; }
+
+mkdir -p modules dtb
+
+MODULE_LISTS="
+    modules/modules.load.system
+    modules/modules.load.vendor
+    modules/modules.load.vendor_ramdisk
+    modules/modules.load.recovery
+"
+
+EXTRA_MODULES="
+    gps_drv_dl_v051.ko
+    gps_pwr.ko
+    gps_scp.ko
+"
+
+copy_module() {
+    mod="$1"
+    found=$(find "$SRC_DIR" -type f -name "$mod" -print -quit)
+    if [ -n "$found" ]; then
+        cp "$found" "./modules/"
+        chmod -x "./modules/$(basename "$found")"
+        echo "${GREEN}Copied:${RESET} $mod"
+    else
+        echo "${RED}Missing:${RESET} $mod"
+    fi
 }
 
-# Validate input
-if [ $# -ne 1 ]; then
-    error "Please provide the root directory as an argument"
-    show_help
-    exit 1
-fi
+# Copy modules from lists
+for modules_list in $MODULE_LISTS; do
+    if [ ! -f "$modules_list" ]; then
+        echo "${RED}Missing list:${RESET} $modules_list"
+        continue
+    fi
+    while read -r mod; do
+        [ -z "$mod" ] && continue
+        case "$mod" in \#*) continue ;; esac
+        copy_module "$mod"
+    done < "$modules_list"
+done
 
-ROOT_DIR="$1"
+# Copy extra modules
+for mod in $EXTRA_MODULES; do
+    copy_module "$mod"
+done
 
-# Config paths
-DIST_DIR="${ROOT_DIR}/out/dist/kernel_device_modules-6.6/mgk_64_k66_kernel_aarch64.user"
-MTK_DIST_DIR="${ROOT_DIR}/out/dist/kernel_device_modules-6.6/mgk_64_k66.user"
-CUSTOMER_MODULES_DIR="${ROOT_DIR}/out/dist/kernel_device_modules-6.6/mgk_64_k66_customer_modules_install.user"
+# Strip symbols
 CLANG_VERISON=clang-r510928
-STRIP_BIN="${ROOT_DIR}/prebuilts/clang/host/linux-x86/${CLANG_VERISON}/bin/llvm-strip"
+find ./modules -name '*.ko' \
+    -exec ${KERNEL_DIR}/prebuilts/clang/host/linux-x86/${CLANG_VERISON}/bin/llvm-strip --strip-debug {} +
 
-# Validate directories exist
-for dir in "$DIST_DIR" "$MTK_DIST_DIR" "$CUSTOMER_MODULES_DIR"; do
-    if [ ! -d "$dir" ]; then
-        error "Directory not found: $dir"
-        exit 1
+# Kernel artifacts
+for artifact in Image.lz4 kernel-uapi-headers.tar.gz; do
+    found=$(find "$SRC_DIR" -type f -name "$artifact" -print -quit)
+    if [ -n "$found" ]; then
+        cp "$found" ./ 
+        chmod -x "./$(basename "$found")"
+        echo "${GREEN}Copied:${RESET} $(basename "$found")"
+    else
+        echo "${RED}Missing:${RESET} $artifact"
     fi
 done
 
-# Validate strip binary exists
-if [ ! -x "$STRIP_BIN" ]; then
-    error "Strip binary not found or not executable: $STRIP_BIN"
-    exit 1
+# DTBs
+dtbs=$(find "$SRC_DIR" -type f -name "${SOC}.dtb" -print -quit)
+if [ -n "$dtbs" ]; then
+    for dtb in $dtbs; do
+        cp "$dtb" ./dtb/
+        chmod -x "./dtb/$(basename "$dtb")"
+        echo "${GREEN}Copied:${RESET} $(basename "$dtb")"
+    done
+else
+    echo "${RED}Missing:${RESET} ${SOC}.dtb"
 fi
-
-# Create target directories if they don't exist
-for TARGET in system_dlkm vendor_dlkm vendor_ramdisk; do
-    mkdir -p "$TARGET"
-done
-
-# Kernel operations
-info "Copying kernel & DTB..."
-cp "$DIST_DIR/Image.lz4" ./ || error "Failed to copy Image.lz4"
-chmod -x Image.lz4
-
-# Copy Modules
-for TARGET in system_dlkm vendor_dlkm vendor_ramdisk; do
-    info "Copying GKI modules to $TARGET..."
-    find "$DIST_DIR" -type f -name '*.ko' -exec cp {} "$TARGET/" \;
-    cp $CUSTOMER_MODULES_DIR/* $TARGET
-    find "$MTK_DIST_DIR" -type f -name '*.ko' -exec cp {} "$TARGET/" \;
-done
-
-# Remove unused modules
-info "Running git clean..."
-git clean -f system_dlkm/ >/dev/null
-git clean -f vendor_dlkm/ >/dev/null
-git clean -f vendor_ramdisk/ >/dev/null
-
-# Restore specific files
-# FILES_TO_RESTORE=(
-#     # Missing front camera
-#     vendor_dlkm/camera_dpe_isp7sp.ko
-#     vendor_dlkm/camera_eeprom_v4l2.ko
-#     vendor_dlkm/imgsensor-glue.ko
-#     vendor_dlkm/imgsensor.ko
-#     vendor_dlkm/mtk_imgsys_cmdq.ko
-#     vendor_dlkm/mtk_imgsys_isp7sp.ko
-#     # I honestly don't know
-#     vendor_ramdisk/rpmb-mtk.ko
-#     vendor_ramdisk/ufs-mediatek-dbg.ko
-#     vendor_ramdisk/ufs-mediatek-mod.ko
-# )
-# info "Restoring tracked files..."
-# for f in "${FILES_TO_RESTORE[@]}"; do
-#      git restore "$f" || warn "Failed to restore $f"
-# done
-
-# Strip the modules
-info "Stripping debug symbols from modules..."
-find . -type f -name '*.ko' -exec "$STRIP_BIN" --strip-debug {} +
-
-info "Operation completed successfully."
