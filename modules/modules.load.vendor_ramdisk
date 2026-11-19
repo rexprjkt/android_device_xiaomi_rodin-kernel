@@ -171,6 +171,7 @@ xm_power.ko
 pwm-mtk-disp.ko
 phy-mtk-pcie.ko
 pcie-mediatek-gen3.ko
+mtk_bp_thl.ko
 leds-mtk.ko
 leds-aw21024.ko
 leds-mtk-disp.ko

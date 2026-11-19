@@ -172,6 +172,7 @@ xm_power.ko
 pwm-mtk-disp.ko
 phy-mtk-pcie.ko
 pcie-mediatek-gen3.ko
+mtk_bp_thl.ko
 leds-mtk.ko
 leds-aw21024.ko
 leds-mtk-disp.ko
@@ -215,7 +216,6 @@ sec.ko
 uload_ind.ko
 load_track.ko
 kshrink_slabd.ko
-scp.ko
 xiaomi_touch_rodin.ko
 focaltech_touch_rodin.ko
 goodix_core_rodin.ko

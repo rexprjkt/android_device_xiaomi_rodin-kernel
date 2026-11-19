@@ -49,7 +49,6 @@ syscon-reboot-mode.ko
 mtk_battery_oc_throttling.ko
 mtk_low_battery_throttling.ko
 mtk_dynamic_loading_throttling.ko
-mtk_bp_thl.ko
 mtk_md_power_throttling.ko
 mtk_cpu_power_throttling.ko
 mtk_gpu_power_throttling.ko
@@ -187,7 +186,6 @@ atf_logger.ko
 mtk-dvfsrc-start.ko
 bt_drv_6899.ko
 cpudvfs.ko
-task_turbo.ko
 mtk_perf_ioctl.ko
 mtk_perf_common.ko
 sec.ko
@@ -211,12 +209,6 @@ focaltech_touch_rodin.ko
 camera_dpe_isp8.ko
 haptic.ko
 si_haptic.ko
-mtk_fpsgo.ko
-mtk_game.ko
-frs.ko
-fpsgo.ko
-game.ko
-task_turbo_v.ko
 aac_haptic.ko
 hbt.ko
 mtk_c2ps.ko
