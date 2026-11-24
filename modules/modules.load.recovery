@@ -168,7 +168,6 @@ pd_single_cp_manager.ko
 mtk_charger_framework.ko
 rt_pd_manager.ko
 mt6375-battery.ko
-xm_power.ko
 pwm-mtk-disp.ko
 phy-mtk-pcie.ko
 pcie-mediatek-gen3.ko
